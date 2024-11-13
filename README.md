@@ -10,7 +10,7 @@ Human-readable duration formatting and parsing.
 
 ```toml
 [dependencies]
-philiprehberger-duration-fmt = "0.1"
+philiprehberger-duration-fmt = "0.1.5"
 ```
 
 ## Usage

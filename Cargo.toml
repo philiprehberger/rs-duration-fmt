@@ -1,10 +1,13 @@
 [package]
 name = "philiprehberger-duration-fmt"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 authors = ["Philip Rehberger"]
 description = "Human-readable duration formatting and parsing"
 license = "MIT"
 repository = "https://github.com/philiprehberger/rs-duration-fmt"
+readme = "README.md"
+rust-version = "1.70"
+documentation = "https://docs.rs/philiprehberger-duration-fmt"
 keywords = ["duration", "human-readable", "time", "formatting", "parsing"]
 categories = ["date-and-time", "value-formatting"]

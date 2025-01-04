@@ -10,7 +10,7 @@ Human-readable duration formatting and parsing.
 
 ```toml
 [dependencies]
-philiprehberger-duration-fmt = "0.1.5"
+philiprehberger-duration-fmt = "0.1.6"
 ```
 
 ## Usage
@@ -46,6 +46,14 @@ assert_eq!(format_duration_precise(d, 2), "1d 1h");
 | `format_duration_precise(d, n)` | Show only top N units |
 | `parse_duration(s)` | Parse compact: "2h30m", "500ms" |
 | `parse_duration_verbose(s)` | Parse verbose: "2 hours 30 minutes" |
+
+
+## Development
+
+```bash
+cargo test
+cargo clippy -- -D warnings
+```
 
 ## License
 

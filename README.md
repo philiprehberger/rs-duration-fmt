@@ -4,7 +4,7 @@
 [![Crates.io](https://img.shields.io/crates/v/philiprehberger-duration-fmt.svg)](https://crates.io/crates/philiprehberger-duration-fmt)
 [![License](https://img.shields.io/github/license/philiprehberger/rs-duration-fmt)](LICENSE)
 
-Human-readable duration formatting and parsing.
+Human-readable duration formatting and parsing
 
 ## Installation
 

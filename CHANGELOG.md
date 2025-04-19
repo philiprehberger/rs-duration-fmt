@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 (2026-03-21)
+
+- Add format_duration_iso8601() for ISO 8601 duration formatting (PT2H30M15S)
+- Add parse_iso8601_duration() for parsing ISO 8601 duration strings
+- Add format_duration_short() for abbreviated format (2h30m15s)
+- Add #[must_use] attributes on all public functions
+
 ## 0.1.6 (2026-03-17)
 
 - Add readme, rust-version, documentation to Cargo.toml

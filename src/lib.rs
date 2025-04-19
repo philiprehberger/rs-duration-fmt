@@ -13,7 +13,7 @@
 //! # Examples
 //!
 //! ```
-//! use philiprehberger_duration_fmt::{format_duration, parse_duration};
+//! use philiprehberger_duration_fmt::{format_duration, parse_duration, format_duration_iso8601, parse_iso8601_duration, format_duration_short};
 //! use std::time::Duration;
 //!
 //! let d = Duration::from_secs(9015);
@@ -21,6 +21,14 @@
 //!
 //! let parsed = parse_duration("2h 30m 15s").unwrap();
 //! assert_eq!(parsed, d);
+//!
+//! // ISO 8601
+//! assert_eq!(format_duration_iso8601(d), "PT2H30M15S");
+//! let iso_parsed = parse_iso8601_duration("PT2H30M15S").unwrap();
+//! assert_eq!(iso_parsed, d);
+//!
+//! // Short format
+//! assert_eq!(format_duration_short(d), "2h30m15s");
 //! ```
 
 use std::fmt;
@@ -92,6 +100,7 @@ fn decompose(d: Duration) -> Components {
 /// assert_eq!(format_duration(Duration::from_secs(3661)), "1h 1m 1s");
 /// assert_eq!(format_duration(Duration::ZERO), "0s");
 /// ```
+#[must_use]
 pub fn format_duration(d: Duration) -> String {
     let c = decompose(d);
     let mut parts = Vec::new();
@@ -135,6 +144,7 @@ pub fn format_duration(d: Duration) -> String {
 ///     "2 hours, 30 minutes, 15 seconds"
 /// );
 /// ```
+#[must_use]
 pub fn format_duration_verbose(d: Duration) -> String {
     let c = decompose(d);
     let mut parts = Vec::new();
@@ -186,6 +196,7 @@ pub fn format_duration_verbose(d: Duration) -> String {
 /// assert_eq!(format_duration_precise(d, 2), "1d 1h");
 /// assert_eq!(format_duration_precise(d, 1), "1d");
 /// ```
+#[must_use]
 pub fn format_duration_precise(d: Duration, max_units: usize) -> String {
     let c = decompose(d);
     let mut parts = Vec::new();
@@ -353,6 +364,181 @@ pub fn parse_duration_verbose(s: &str) -> Result<Duration, ParseError> {
     // The verbose format has spaces between numbers and units, which
     // parse_duration already handles. We can delegate directly.
     parse_duration(&cleaned)
+}
+
+/// Format a duration as an ISO 8601 duration string.
+///
+/// Produces strings like `"PT2H30M15S"`. Zero components are omitted.
+/// A zero duration returns `"PT0S"`.
+///
+/// # Examples
+///
+/// ```
+/// use philiprehberger_duration_fmt::format_duration_iso8601;
+/// use std::time::Duration;
+///
+/// assert_eq!(format_duration_iso8601(Duration::from_secs(9015)), "PT2H30M15S");
+/// assert_eq!(format_duration_iso8601(Duration::ZERO), "PT0S");
+/// ```
+#[must_use]
+pub fn format_duration_iso8601(d: Duration) -> String {
+    let total_secs = d.as_secs();
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+
+    if hours == 0 && minutes == 0 && seconds == 0 {
+        return "PT0S".to_string();
+    }
+
+    let mut result = "PT".to_string();
+    if hours > 0 {
+        result.push_str(&format!("{hours}H"));
+    }
+    if minutes > 0 {
+        result.push_str(&format!("{minutes}M"));
+    }
+    if seconds > 0 {
+        result.push_str(&format!("{seconds}S"));
+    }
+    result
+}
+
+/// Parse an ISO 8601 duration string into a [`Duration`].
+///
+/// Accepts strings starting with `PT` followed by optional hours (`H`),
+/// minutes (`M`), and seconds (`S`) components. For example: `"PT2H30M15S"`,
+/// `"PT5M"`, `"PT0S"`.
+///
+/// # Errors
+///
+/// Returns [`ParseError::EmptyInput`] if the string is empty, or
+/// [`ParseError::InvalidFormat`] if it does not start with `PT` or contains
+/// unrecognized components.
+///
+/// # Examples
+///
+/// ```
+/// use philiprehberger_duration_fmt::parse_iso8601_duration;
+/// use std::time::Duration;
+///
+/// assert_eq!(parse_iso8601_duration("PT2H30M15S").unwrap(), Duration::from_secs(9015));
+/// assert_eq!(parse_iso8601_duration("PT5M").unwrap(), Duration::from_secs(300));
+/// ```
+pub fn parse_iso8601_duration(s: &str) -> Result<Duration, ParseError> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err(ParseError::EmptyInput);
+    }
+    if !s.starts_with("PT") {
+        return Err(ParseError::InvalidFormat(
+            "ISO 8601 duration must start with 'PT'".to_string(),
+        ));
+    }
+
+    let body = &s[2..];
+    if body.is_empty() {
+        return Err(ParseError::InvalidFormat(
+            "no components after 'PT'".to_string(),
+        ));
+    }
+
+    let mut total_secs: u64 = 0;
+    let mut chars = body.as_bytes();
+    let mut found_any = false;
+
+    while !chars.is_empty() {
+        // Parse number
+        let mut num_len = 0;
+        while num_len < chars.len() && chars[num_len].is_ascii_digit() {
+            num_len += 1;
+        }
+        if num_len == 0 {
+            return Err(ParseError::InvalidFormat(format!(
+                "expected a number near '{}'",
+                String::from_utf8_lossy(chars)
+            )));
+        }
+        let num_str = std::str::from_utf8(&chars[..num_len]).unwrap();
+        let value: u64 = num_str.parse().map_err(|_| ParseError::Overflow)?;
+        chars = &chars[num_len..];
+
+        if chars.is_empty() {
+            return Err(ParseError::InvalidFormat(
+                "expected H, M, or S after number".to_string(),
+            ));
+        }
+
+        let unit = chars[0];
+        chars = &chars[1..];
+
+        let multiplier = match unit {
+            b'H' => 3600,
+            b'M' => 60,
+            b'S' => 1,
+            _ => {
+                return Err(ParseError::InvalidFormat(format!(
+                    "unexpected unit '{}', expected H, M, or S",
+                    unit as char
+                )));
+            }
+        };
+
+        total_secs = total_secs
+            .checked_add(value.checked_mul(multiplier).ok_or(ParseError::Overflow)?)
+            .ok_or(ParseError::Overflow)?;
+        found_any = true;
+    }
+
+    if !found_any {
+        return Err(ParseError::InvalidFormat(
+            "no components found".to_string(),
+        ));
+    }
+
+    Ok(Duration::from_secs(total_secs))
+}
+
+/// Format a duration in short abbreviated style without spaces.
+///
+/// Produces strings like `"2h30m15s"`. Zero components are omitted.
+/// A zero duration returns `"0s"`.
+///
+/// # Examples
+///
+/// ```
+/// use philiprehberger_duration_fmt::format_duration_short;
+/// use std::time::Duration;
+///
+/// assert_eq!(format_duration_short(Duration::from_secs(9015)), "2h30m15s");
+/// assert_eq!(format_duration_short(Duration::ZERO), "0s");
+/// ```
+#[must_use]
+pub fn format_duration_short(d: Duration) -> String {
+    let c = decompose(d);
+    let mut result = String::new();
+
+    if c.days > 0 {
+        result.push_str(&format!("{}d", c.days));
+    }
+    if c.hours > 0 {
+        result.push_str(&format!("{}h", c.hours));
+    }
+    if c.minutes > 0 {
+        result.push_str(&format!("{}m", c.minutes));
+    }
+    if c.seconds > 0 {
+        result.push_str(&format!("{}s", c.seconds));
+    }
+    if c.millis > 0 {
+        result.push_str(&format!("{}ms", c.millis));
+    }
+
+    if result.is_empty() {
+        "0s".to_string()
+    } else {
+        result
+    }
 }
 
 #[cfg(test)]
@@ -638,6 +824,128 @@ mod tests {
         assert_eq!(
             parse_duration("  2h   30m  ").unwrap(),
             Duration::from_secs(9000)
+        );
+    }
+
+    // ---- format_duration_iso8601 ----
+
+    #[test]
+    fn iso8601_zero() {
+        assert_eq!(format_duration_iso8601(Duration::ZERO), "PT0S");
+    }
+
+    #[test]
+    fn iso8601_hours_minutes_seconds() {
+        assert_eq!(
+            format_duration_iso8601(Duration::from_secs(9015)),
+            "PT2H30M15S"
+        );
+    }
+
+    #[test]
+    fn iso8601_hours_only() {
+        assert_eq!(
+            format_duration_iso8601(Duration::from_secs(7200)),
+            "PT2H"
+        );
+    }
+
+    #[test]
+    fn iso8601_minutes_only() {
+        assert_eq!(
+            format_duration_iso8601(Duration::from_secs(300)),
+            "PT5M"
+        );
+    }
+
+    #[test]
+    fn iso8601_seconds_only() {
+        assert_eq!(
+            format_duration_iso8601(Duration::from_secs(45)),
+            "PT45S"
+        );
+    }
+
+    // ---- parse_iso8601_duration ----
+
+    #[test]
+    fn parse_iso8601_full() {
+        assert_eq!(
+            parse_iso8601_duration("PT2H30M15S").unwrap(),
+            Duration::from_secs(9015)
+        );
+    }
+
+    #[test]
+    fn parse_iso8601_minutes_only() {
+        assert_eq!(
+            parse_iso8601_duration("PT5M").unwrap(),
+            Duration::from_secs(300)
+        );
+    }
+
+    #[test]
+    fn parse_iso8601_zero() {
+        assert_eq!(
+            parse_iso8601_duration("PT0S").unwrap(),
+            Duration::ZERO
+        );
+    }
+
+    #[test]
+    fn parse_iso8601_missing_prefix() {
+        assert!(matches!(
+            parse_iso8601_duration("2H30M"),
+            Err(ParseError::InvalidFormat(_))
+        ));
+    }
+
+    #[test]
+    fn parse_iso8601_empty() {
+        assert_eq!(parse_iso8601_duration(""), Err(ParseError::EmptyInput));
+    }
+
+    #[test]
+    fn roundtrip_iso8601() {
+        let original = Duration::from_secs(9015);
+        let formatted = format_duration_iso8601(original);
+        let parsed = parse_iso8601_duration(&formatted).unwrap();
+        assert_eq!(parsed, original);
+    }
+
+    // ---- format_duration_short ----
+
+    #[test]
+    fn short_zero() {
+        assert_eq!(format_duration_short(Duration::ZERO), "0s");
+    }
+
+    #[test]
+    fn short_hours_minutes_seconds() {
+        assert_eq!(
+            format_duration_short(Duration::from_secs(9015)),
+            "2h30m15s"
+        );
+    }
+
+    #[test]
+    fn short_seconds_only() {
+        assert_eq!(format_duration_short(Duration::from_secs(45)), "45s");
+    }
+
+    #[test]
+    fn short_with_days() {
+        assert_eq!(
+            format_duration_short(Duration::from_secs(90061)),
+            "1d1h1m1s"
+        );
+    }
+
+    #[test]
+    fn short_with_millis() {
+        assert_eq!(
+            format_duration_short(Duration::from_millis(1500)),
+            "1s500ms"
         );
     }
 }

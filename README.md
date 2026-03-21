@@ -10,7 +10,7 @@ Human-readable duration formatting and parsing
 
 ```toml
 [dependencies]
-philiprehberger-duration-fmt = "0.1.6"
+philiprehberger-duration-fmt = "0.2.0"
 ```
 
 ## Usage
@@ -37,6 +37,28 @@ let d = Duration::from_secs(90061);
 assert_eq!(format_duration_precise(d, 2), "1d 1h");
 ```
 
+### ISO 8601
+
+```rust
+use philiprehberger_duration_fmt::{format_duration_iso8601, parse_iso8601_duration};
+use std::time::Duration;
+
+let d = Duration::from_secs(9015);
+assert_eq!(format_duration_iso8601(d), "PT2H30M15S");
+
+let parsed = parse_iso8601_duration("PT2H30M15S").unwrap();
+assert_eq!(parsed, d);
+```
+
+### Short format
+
+```rust
+use philiprehberger_duration_fmt::format_duration_short;
+use std::time::Duration;
+
+assert_eq!(format_duration_short(Duration::from_secs(9015)), "2h30m15s");
+```
+
 ## API
 
 | Function | Description |
@@ -46,6 +68,9 @@ assert_eq!(format_duration_precise(d, 2), "1d 1h");
 | `format_duration_precise(d, n)` | Show only top N units |
 | `parse_duration(s)` | Parse compact: "2h30m", "500ms" |
 | `parse_duration_verbose(s)` | Parse verbose: "2 hours 30 minutes" |
+| `format_duration_iso8601(d)` | ISO 8601 format: "PT2H30M15S" |
+| `parse_iso8601_duration(s)` | Parse ISO 8601 duration strings |
+| `format_duration_short(d)` | Abbreviated format: "2h30m15s" |
 
 
 ## Development

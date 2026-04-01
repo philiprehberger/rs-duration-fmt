@@ -2,12 +2,7 @@
 
 [![CI](https://github.com/philiprehberger/rs-duration-fmt/actions/workflows/ci.yml/badge.svg)](https://github.com/philiprehberger/rs-duration-fmt/actions/workflows/ci.yml)
 [![Crates.io](https://img.shields.io/crates/v/philiprehberger-duration-fmt.svg)](https://crates.io/crates/philiprehberger-duration-fmt)
-[![GitHub release](https://img.shields.io/github/v/release/philiprehberger/rs-duration-fmt)](https://github.com/philiprehberger/rs-duration-fmt/releases)
 [![Last updated](https://img.shields.io/github/last-commit/philiprehberger/rs-duration-fmt)](https://github.com/philiprehberger/rs-duration-fmt/commits/main)
-[![License](https://img.shields.io/github/license/philiprehberger/rs-duration-fmt)](LICENSE)
-[![Bug Reports](https://img.shields.io/github/issues/philiprehberger/rs-duration-fmt/bug)](https://github.com/philiprehberger/rs-duration-fmt/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Feature Requests](https://img.shields.io/github/issues/philiprehberger/rs-duration-fmt/enhancement)](https://github.com/philiprehberger/rs-duration-fmt/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
-[![Sponsor](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ec6cb9)](https://github.com/sponsors/philiprehberger)
 
 Human-readable duration formatting and parsing
 
@@ -77,7 +72,6 @@ assert_eq!(format_duration_short(Duration::from_secs(9015)), "2h30m15s");
 | `parse_iso8601_duration(s)` | Parse ISO 8601 duration strings |
 | `format_duration_short(d)` | Abbreviated format: "2h30m15s" |
 
-
 ## Development
 
 ```bash
@@ -87,10 +81,21 @@ cargo clippy -- -D warnings
 
 ## Support
 
-If you find this package useful, consider giving it a star on GitHub — it helps motivate continued maintenance and development.
+If you find this project useful:
 
-[![LinkedIn](https://img.shields.io/badge/Philip%20Rehberger-LinkedIn-0A66C2?logo=linkedin)](https://www.linkedin.com/in/philiprehberger)
-[![More packages](https://img.shields.io/badge/more-open%20source%20packages-blue)](https://philiprehberger.com/open-source-packages)
+⭐ [Star the repo](https://github.com/philiprehberger/rs-duration-fmt)
+
+🐛 [Report issues](https://github.com/philiprehberger/rs-duration-fmt/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
+
+💡 [Suggest features](https://github.com/philiprehberger/rs-duration-fmt/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)
+
+❤️ [Sponsor development](https://github.com/sponsors/philiprehberger)
+
+🌐 [All Open Source Projects](https://philiprehberger.com/open-source-packages)
+
+💻 [GitHub Profile](https://github.com/philiprehberger)
+
+🔗 [LinkedIn Profile](https://www.linkedin.com/in/philiprehberger)
 
 ## License
 

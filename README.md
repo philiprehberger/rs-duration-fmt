@@ -4,13 +4,15 @@
 [![Crates.io](https://img.shields.io/crates/v/philiprehberger-duration-fmt.svg)](https://crates.io/crates/philiprehberger-duration-fmt)
 [![Last updated](https://img.shields.io/github/last-commit/philiprehberger/rs-duration-fmt)](https://github.com/philiprehberger/rs-duration-fmt/commits/main)
 
+![rs-duration-fmt](https://raw.githubusercontent.com/philiprehberger/rs-duration-fmt/main/package-card.webp)
+
 Human-readable duration formatting and parsing
 
 ## Installation
 
 ```toml
 [dependencies]
-philiprehberger-duration-fmt = "0.2.2"
+philiprehberger-duration-fmt = "0.3.0"
 ```
 
 ## Usage
@@ -59,6 +61,20 @@ use std::time::Duration;
 assert_eq!(format_duration_short(Duration::from_secs(9015)), "2h30m15s");
 ```
 
+### Clock format and decimal parsing
+
+```rust
+use philiprehberger_duration_fmt::{format_duration_clock, parse_duration_clock, parse_duration};
+use std::time::Duration;
+
+assert_eq!(format_duration_clock(Duration::from_secs(9015)), "02:30:15");
+assert_eq!(parse_duration_clock("02:30:15").unwrap(), Duration::from_secs(9015));
+
+// Decimal values in the existing compact parser
+assert_eq!(parse_duration("1.5h").unwrap(), Duration::from_secs(5400));
+assert_eq!(parse_duration("0.5s").unwrap(), Duration::from_millis(500));
+```
+
 ## API
 
 | Function | Description |
@@ -66,11 +82,13 @@ assert_eq!(format_duration_short(Duration::from_secs(9015)), "2h30m15s");
 | `format_duration(d)` | Compact format: "2h 30m 15s" |
 | `format_duration_verbose(d)` | Verbose format: "2 hours, 30 minutes, 15 seconds" |
 | `format_duration_precise(d, n)` | Show only top N units |
-| `parse_duration(s)` | Parse compact: "2h30m", "500ms" |
+| `parse_duration(s)` | Parse compact: "2h30m", "500ms" (decimal values supported, e.g. "1.5h") |
 | `parse_duration_verbose(s)` | Parse verbose: "2 hours 30 minutes" |
 | `format_duration_iso8601(d)` | ISO 8601 format: "PT2H30M15S" |
 | `parse_iso8601_duration(s)` | Parse ISO 8601 duration strings |
 | `format_duration_short(d)` | Abbreviated format: "2h30m15s" |
+| `format_duration_clock(d)` | Clock format: "02:30:15" (HH:MM:SS) |
+| `parse_duration_clock(s)` | Parse clock format: "HH:MM:SS" or "MM:SS" |
 
 ## Development
 

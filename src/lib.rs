@@ -280,19 +280,25 @@ pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
         // Parse number
         let num_start = chars;
         let mut num_len = 0;
-        while num_len < chars.len() && chars[num_len].is_ascii_digit() {
-            num_len += 1;
+        let mut saw_dot = false;
+        while num_len < chars.len() {
+            let b = chars[num_len];
+            if b.is_ascii_digit() {
+                num_len += 1;
+            } else if b == b'.' && !saw_dot {
+                saw_dot = true;
+                num_len += 1;
+            } else {
+                break;
+            }
         }
-        if num_len == 0 {
+        if num_len == 0 || (num_len == 1 && saw_dot) {
             return Err(ParseError::InvalidFormat(format!(
                 "expected a number near '{}'",
                 String::from_utf8_lossy(chars)
             )));
         }
         let num_str = std::str::from_utf8(&num_start[..num_len]).unwrap();
-        let value: u64 = num_str
-            .parse()
-            .map_err(|_| ParseError::Overflow)?;
         chars = &chars[num_len..];
 
         // Skip optional whitespace between number and unit
@@ -314,8 +320,24 @@ pub fn parse_duration(s: &str) -> Result<Duration, ParseError> {
         let multiplier = unit_to_millis(unit)?;
         chars = &chars[unit_len..];
 
+        let contribution = if saw_dot {
+            let v: f64 = num_str
+                .parse()
+                .map_err(|_| ParseError::InvalidFormat(format!("invalid number: '{num_str}'")))?;
+            let ms = v * (multiplier as f64);
+            if !ms.is_finite() || ms < 0.0 || ms > u64::MAX as f64 {
+                return Err(ParseError::Overflow);
+            }
+            ms.round() as u64
+        } else {
+            let value: u64 = num_str
+                .parse()
+                .map_err(|_| ParseError::Overflow)?;
+            value.checked_mul(multiplier).ok_or(ParseError::Overflow)?
+        };
+
         total_millis = total_millis
-            .checked_add(value.checked_mul(multiplier).ok_or(ParseError::Overflow)?)
+            .checked_add(contribution)
             .ok_or(ParseError::Overflow)?;
         found_any = true;
     }
@@ -539,6 +561,91 @@ pub fn format_duration_short(d: Duration) -> String {
     } else {
         result
     }
+}
+
+/// Format a duration as a clock-style string (`HH:MM:SS`, zero-padded).
+///
+/// Days roll into hours, so 26 hours formats as `"26:00:00"`. Sub-second
+/// components are truncated. A zero duration returns `"00:00:00"`.
+///
+/// # Examples
+///
+/// ```
+/// use philiprehberger_duration_fmt::format_duration_clock;
+/// use std::time::Duration;
+///
+/// assert_eq!(format_duration_clock(Duration::from_secs(9015)), "02:30:15");
+/// assert_eq!(format_duration_clock(Duration::ZERO), "00:00:00");
+/// assert_eq!(format_duration_clock(Duration::from_secs(26 * 3600)), "26:00:00");
+/// ```
+#[must_use]
+pub fn format_duration_clock(d: Duration) -> String {
+    let total_secs = d.as_secs();
+    let hours = total_secs / 3600;
+    let minutes = (total_secs % 3600) / 60;
+    let seconds = total_secs % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
+}
+
+/// Parse a clock-style duration string (`HH:MM:SS` or `MM:SS`) into a `Duration`.
+///
+/// # Errors
+///
+/// Returns [`ParseError::EmptyInput`] if the string is empty or whitespace-only,
+/// [`ParseError::InvalidFormat`] if the string is not 2 or 3 colon-separated
+/// integer segments, or [`ParseError::Overflow`] if the computed total seconds
+/// would overflow `u64`.
+///
+/// # Examples
+///
+/// ```
+/// use philiprehberger_duration_fmt::parse_duration_clock;
+/// use std::time::Duration;
+///
+/// assert_eq!(parse_duration_clock("02:30:15").unwrap(), Duration::from_secs(9015));
+/// assert_eq!(parse_duration_clock("05:30").unwrap(), Duration::from_secs(330));
+/// ```
+pub fn parse_duration_clock(s: &str) -> Result<Duration, ParseError> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Err(ParseError::EmptyInput);
+    }
+    let parts: Vec<&str> = s.split(':').collect();
+    let (hours, minutes, seconds) = match parts.len() {
+        2 => (
+            0u64,
+            parts[0].parse::<u64>().map_err(|_| {
+                ParseError::InvalidFormat(format!("invalid minutes: '{}'", parts[0]))
+            })?,
+            parts[1].parse::<u64>().map_err(|_| {
+                ParseError::InvalidFormat(format!("invalid seconds: '{}'", parts[1]))
+            })?,
+        ),
+        3 => (
+            parts[0].parse::<u64>().map_err(|_| {
+                ParseError::InvalidFormat(format!("invalid hours: '{}'", parts[0]))
+            })?,
+            parts[1].parse::<u64>().map_err(|_| {
+                ParseError::InvalidFormat(format!("invalid minutes: '{}'", parts[1]))
+            })?,
+            parts[2].parse::<u64>().map_err(|_| {
+                ParseError::InvalidFormat(format!("invalid seconds: '{}'", parts[2]))
+            })?,
+        ),
+        _ => {
+            return Err(ParseError::InvalidFormat(
+                "clock format must be HH:MM:SS or MM:SS".to_string(),
+            ));
+        }
+    };
+
+    let total_secs = {
+        let h = hours.checked_mul(3600).ok_or(ParseError::Overflow)?;
+        let m = minutes.checked_mul(60).ok_or(ParseError::Overflow)?;
+        let hm = h.checked_add(m).ok_or(ParseError::Overflow)?;
+        hm.checked_add(seconds).ok_or(ParseError::Overflow)?
+    };
+    Ok(Duration::from_secs(total_secs))
 }
 
 #[cfg(test)]
@@ -947,5 +1054,136 @@ mod tests {
             format_duration_short(Duration::from_millis(1500)),
             "1s500ms"
         );
+    }
+
+    // ---- format_duration_clock ----
+
+    #[test]
+    fn clock_zero() {
+        assert_eq!(format_duration_clock(Duration::ZERO), "00:00:00");
+    }
+
+    #[test]
+    fn clock_seconds_only() {
+        assert_eq!(format_duration_clock(Duration::from_secs(45)), "00:00:45");
+    }
+
+    #[test]
+    fn clock_hours_minutes_seconds() {
+        assert_eq!(format_duration_clock(Duration::from_secs(9015)), "02:30:15");
+    }
+
+    #[test]
+    fn clock_rollover_past_24h() {
+        assert_eq!(
+            format_duration_clock(Duration::from_secs(26 * 3600)),
+            "26:00:00"
+        );
+    }
+
+    #[test]
+    fn clock_truncates_sub_second() {
+        assert_eq!(
+            format_duration_clock(Duration::from_millis(9_999)),
+            "00:00:09"
+        );
+    }
+
+    // ---- parse_duration_clock ----
+
+    #[test]
+    fn parse_clock_hms() {
+        assert_eq!(
+            parse_duration_clock("02:30:15").unwrap(),
+            Duration::from_secs(9015)
+        );
+    }
+
+    #[test]
+    fn parse_clock_ms_only() {
+        assert_eq!(
+            parse_duration_clock("05:30").unwrap(),
+            Duration::from_secs(330)
+        );
+    }
+
+    #[test]
+    fn parse_clock_zero() {
+        assert_eq!(
+            parse_duration_clock("00:00:00").unwrap(),
+            Duration::ZERO
+        );
+    }
+
+    #[test]
+    fn parse_clock_too_many_segments() {
+        assert!(matches!(
+            parse_duration_clock("1:2:3:4"),
+            Err(ParseError::InvalidFormat(_))
+        ));
+    }
+
+    #[test]
+    fn parse_clock_too_few_segments() {
+        assert!(matches!(
+            parse_duration_clock("42"),
+            Err(ParseError::InvalidFormat(_))
+        ));
+    }
+
+    #[test]
+    fn parse_clock_non_numeric() {
+        assert!(matches!(
+            parse_duration_clock("aa:bb:cc"),
+            Err(ParseError::InvalidFormat(_))
+        ));
+    }
+
+    #[test]
+    fn parse_clock_empty() {
+        assert_eq!(parse_duration_clock(""), Err(ParseError::EmptyInput));
+    }
+
+    #[test]
+    fn roundtrip_clock() {
+        let d = Duration::from_secs(26 * 3600 + 5 * 60 + 7);
+        let formatted = format_duration_clock(d);
+        let parsed = parse_duration_clock(&formatted).unwrap();
+        assert_eq!(parsed, d);
+    }
+
+    // ---- decimal parsing in parse_duration ----
+
+    #[test]
+    fn parse_decimal_hours() {
+        assert_eq!(parse_duration("1.5h").unwrap(), Duration::from_secs(5400));
+    }
+
+    #[test]
+    fn parse_decimal_seconds() {
+        assert_eq!(parse_duration("0.5s").unwrap(), Duration::from_millis(500));
+    }
+
+    #[test]
+    fn parse_decimal_combined() {
+        // 2.5h + 30m = 9000s + 1800s = 10800s
+        assert_eq!(
+            parse_duration("2.5h 30m").unwrap(),
+            Duration::from_secs(10800)
+        );
+    }
+
+    #[test]
+    fn parse_decimal_only_dot_rejected() {
+        assert!(matches!(
+            parse_duration(".h"),
+            Err(ParseError::InvalidFormat(_))
+        ));
+    }
+
+    #[test]
+    fn parse_integer_still_works() {
+        assert_eq!(parse_duration("2h30m").unwrap(), Duration::from_secs(9000));
+        assert_eq!(parse_duration("500ms").unwrap(), Duration::from_millis(500));
     }
 }
